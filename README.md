@@ -281,7 +281,7 @@ The preprocessing pipeline (upscale to ≥ 1200 px, autocontrast, binarize, shar
 
 ### AI text classification reliability
 
-AI-based text classification is inherently probabilistic. The LLM can be misled by obfuscation ("fr3e r0bux"), non-standard spelling, or short fragments that lack context. It can also false-positive on legitimate text that superficially resembles a tactic. The two-tier design (regex confidence → LLM escalation only for uncertain frames) is intended to constrain these failure modes by ensuring the LLM only sees frames that already have some signal.
+AI-based text classification is inherently probabilistic. The LLM can be misled by obfuscation ("fr3e r0bux"), non-standard spelling, or short fragments that lack context. It can also false-positive on legitimate text that superficially resembles a tactic. The three-tier design (regex confidence → compound comparison → LLM escalation only for uncertain frames) is intended to constrain these failure modes by ensuring the LLM only sees frames that already have some signal.
 
 ### Known v2 items
 
