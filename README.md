@@ -4,7 +4,7 @@ A desktop child safety tool that watches a child's game screen in real time, OCR
 
 ## NOTE FOR GRADERS:
 
-I pivoted my project slightly from the first and second milestone. After reviewing the feedback I recieved in those milestones, I realized I should narrowed the focus of my AI detection software, which is why I chose to move to detection of scams.
+I pivoted my project slightly from the first and second milestone. After reviewing the feedback I recieved in those milestones, I realized I should narrowed the focus of my AI detection software, which is why I chose to move to detection of scams. I started a new repo beacause I was using entirely new tools, but used the same similar pipeline of classificaiton I had learned from the first github repo submitted for milestone 2. 
 
 ---
 
