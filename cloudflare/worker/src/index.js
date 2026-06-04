@@ -5,6 +5,7 @@
  *   POST /register          — register a new device token (first run)
  *   POST /events            — ingest a flagged event (requires Bearer token)
  *   GET  /events            — fetch events for a token (for the dashboard)
+ *   POST /classify          — run Workers AI on a text snippet (no storage)
  *
  * Auth: every request that touches event data must include
  *   Authorization: Bearer <device_token>
@@ -26,6 +27,34 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
 };
+
+// System prompt for the /classify LLM route.
+// Instruct the model to return ONLY a JSON object — no prose, no fences.
+const CLASSIFY_SYSTEM_PROMPT = `You are a child-safety classifier. You receive text extracted from a child's game screen (Roblox, Xbox, Fortnite, Minecraft, etc.) via OCR.
+
+Determine whether the text contains a SCAM or COERCION TACTIC directed AT the child by another player or stranger.
+
+CRITICAL INTENT RULE — identify who is speaking:
+- A CHILD ASKING a question ("where can I get free skins?", "does anyone have robux?") → NONE
+- A STRANGER TARGETING the child ("I'll give you free robux, DM me", "what's your password") → classify the tactic
+
+Tactic definitions:
+URGENCY           — time pressure to act before thinking ("only 3 minutes left", "act now or lose it")
+SECRECY           — hiding activity from parents ("don't tell your parents", "keep this between us")
+FALSE_AUTHORITY   — impersonating platform staff ("I'm a Roblox admin", "official Xbox support")
+RECIPROCITY       — go-first trap ("trust trade, you send first", "send yours and I'll send mine")
+CREDENTIAL_REQUEST — requesting account credentials ("what's your password", "send me your 2FA code")
+PAYMENT_REQUEST   — money or gift card demands ("send me a gift card", "buy me V-Bucks", "scan this QR")
+FREE_ITEM_LURE    — free item offer combined with an engagement hook ("free robux, DM me first", "giving away skins, add me on discord")
+OFF_PLATFORM      — redirecting to an unmoderated channel ("let's move to Discord to trade", "add me on Telegram")
+NONE              — normal game chat, benign content, or a child asking a question (not a threat)
+
+Output exactly one JSON object — no markdown, no prose, nothing else:
+{"tactic":"NONE","confidence":0.0,"reasoning":"one short sentence"}`;
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
@@ -143,6 +172,67 @@ async function handleGetEvents(request, db) {
 }
 
 // ---------------------------------------------------------------------------
+// POST /classify
+// Body: { "text": "<snippet>" }
+// Calls Workers AI; never stores the text or the result in D1.
+// ---------------------------------------------------------------------------
+async function handleClassify(request, env) {
+  const token = extractToken(request);
+  if (!token) return json({ error: "missing or malformed Bearer token" }, 401);
+
+  const device = await getDevice(env.DB, token);
+  if (!device) return json({ error: "unknown device" }, 403);
+
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return json({ error: "invalid JSON" }, 400);
+  }
+
+  const text = String(body.text || "").slice(0, 1000).trim();
+  if (!text) {
+    return json({ tactic: "NONE", confidence: 0, reasoning: "empty input" });
+  }
+
+  let raw = "";
+  try {
+    const response = await env.AI.run("@cf/meta/llama-3.1-8b-instruct", {
+      messages: [
+        { role: "system", content: CLASSIFY_SYSTEM_PROMPT },
+        { role: "user", content: text },
+      ],
+      max_tokens: 256,
+    });
+    raw = (response.response || "").trim();
+  } catch {
+    return json({ tactic: "NONE", confidence: 0, reasoning: "ai_error" });
+  }
+
+  // Defensive parse: strip markdown fences, extract the first {...} object
+  raw = raw.replace(/^```(?:json)?\s*/im, "").replace(/\s*```\s*$/im, "").trim();
+  const jsonMatch = raw.match(/\{[\s\S]*\}/);
+  if (jsonMatch) raw = jsonMatch[0];
+
+  let result;
+  try {
+    result = JSON.parse(raw);
+  } catch {
+    return json({ tactic: "NONE", confidence: 0, reasoning: "parse_error" });
+  }
+
+  const tactic = ALLOWED_TACTICS.has(result.tactic) ? result.tactic : "NONE";
+  const confidence =
+    typeof result.confidence === "number"
+      ? Math.min(1, Math.max(0, result.confidence))
+      : 0;
+  const reasoning =
+    typeof result.reasoning === "string" ? result.reasoning.slice(0, 200) : "";
+
+  return json({ tactic, confidence, reasoning });
+}
+
+// ---------------------------------------------------------------------------
 // Main handler
 // ---------------------------------------------------------------------------
 export default {
@@ -162,6 +252,9 @@ export default {
     }
     if (url.pathname === "/events" && method === "GET") {
       return handleGetEvents(request, env.DB);
+    }
+    if (url.pathname === "/classify" && method === "POST") {
+      return handleClassify(request, env);
     }
 
     return json({ error: "not found" }, 404);

@@ -254,6 +254,44 @@ def _classify_compound(text: str, tactic_name: str, tactic: dict) -> Finding | N
     )
 
 
+# ---------------------------------------------------------------------------
+# LLM escalation gate
+# ---------------------------------------------------------------------------
+
+# Patterns below this weight are too generic to warrant an LLM call on their own
+# (e.g. "right now" @ 0.25).  Only notable signal weight triggers escalation.
+_ESCALATION_MIN_WEIGHT = 0.40
+
+
+def _has_notable_patterns(text: str) -> bool:
+    """True if any pattern with weight >= _ESCALATION_MIN_WEIGHT matches."""
+    for tactic in TACTICS.values():
+        mode = tactic.get("mode", "weighted")
+        if mode == "compound":
+            for patterns in tactic["groups"].values():
+                for pat, weight in patterns:
+                    if weight >= _ESCALATION_MIN_WEIGHT and pat.search(text):
+                        return True
+        else:
+            for pat, weight in tactic.get("patterns", []):
+                if weight >= _ESCALATION_MIN_WEIGHT and pat.search(text):
+                    return True
+    return False
+
+
+def should_escalate_to_llm(text: str) -> bool:
+    """
+    True when regex has partial signals worth an LLM look but no finding
+    crossed the confidence threshold.  False when regex is already confident
+    OR when no relevant keywords appear at all (keeps ~95% of frames offline).
+    """
+    if not text or not text.strip():
+        return False
+    if classify(text):
+        return False  # regex already confident — LLM not needed
+    return _has_notable_patterns(text)
+
+
 def classify(text: str) -> list[Finding]:
     """
     Classify text against all tactics.  Returns findings at or above threshold,
