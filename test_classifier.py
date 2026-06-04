@@ -46,6 +46,27 @@ CASES = [
         "You go first at the starting line, I'll follow",
         None,
     ),
+    # --- FREE_ITEM_LURE + OFF_PLATFORM ---
+    (
+        "free item lure with DM hook — FIRES",
+        "I'll give you free robux, DM me first",
+        "FREE_ITEM_LURE",
+    ),
+    (
+        "benign — asker seeking free skins (interrogative, no hook)",
+        "does anyone know where I can get free skins?",
+        None,
+    ),
+    (
+        "benign — free item mention alone, no hook",
+        "free skins!!",
+        None,
+    ),
+    (
+        "off-platform redirect alone — FIRES",
+        "let's move to Discord to trade",
+        "OFF_PLATFORM",
+    ),
 ]
 
 

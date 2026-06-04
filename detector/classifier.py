@@ -1,13 +1,20 @@
 """
 Coercion-tactic classifier.
 
-Uses weighted regex pattern groups — NOT a keyword blocklist.  Each tactic
-requires enough pattern weight to exceed its threshold, which suppresses
-false positives from isolated common words.
+Two evaluation modes:
+
+  weighted  (default) — accumulated regex weights must reach a threshold.
+                        Used by URGENCY, SECRECY, FALSE_AUTHORITY, RECIPROCITY,
+                        CREDENTIAL_REQUEST, PAYMENT_REQUEST, OFF_PLATFORM.
+
+  compound            — ALL named groups must each have at least one match.
+                        Suppression patterns are checked first; if any fires
+                        the tactic is silenced regardless of group matches.
+                        Used by FREE_ITEM_LURE.
 
 Returns a list of Finding(tactic, confidence, description) sorted by
-confidence descending.  Only findings at or above threshold are returned.
-Raw text is never stored; only the structured result leaves this module.
+confidence descending.  Raw text is never stored; only the structured
+result leaves this module.
 """
 from __future__ import annotations
 import re
@@ -23,15 +30,16 @@ class Finding:
 
 
 # ---------------------------------------------------------------------------
-# Taxonomy definition
-# Each entry: (compiled_regex, weight)
-# Confidence = min(1.0, accumulated_weight / threshold)
-# Only fires if accumulated_weight >= threshold.
+# Helpers
 # ---------------------------------------------------------------------------
 
 def _p(pattern: str) -> re.Pattern:
     return re.compile(pattern, re.IGNORECASE | re.DOTALL)
 
+
+# ---------------------------------------------------------------------------
+# Taxonomy
+# ---------------------------------------------------------------------------
 
 TACTICS: dict[str, dict] = {
 
@@ -134,7 +142,116 @@ TACTICS: dict[str, dict] = {
         ],
         "threshold": 0.55,
     },
+
+    # -----------------------------------------------------------------------
+    # OFF_PLATFORM  (weighted, fires standalone)
+    # Trying to move a child to an unmoderated channel is a known
+    # grooming/scam setup step regardless of whether a lure is present.
+    # -----------------------------------------------------------------------
+    "OFF_PLATFORM": {
+        "description": "Off-platform redirect attempt",
+        "patterns": [
+            # movement verb followed by platform name within 25 chars
+            (_p(r"\b(move|go|come|switch|jump|hop|meet|talk|chat)\b.{0,25}\b(discord|telegram|whatsapp|snapchat|snap)\b"), 0.80),
+            # "add/find/reach/contact me on discord"
+            (_p(r"\b(add|find|reach|contact)\s+me\s+(on|at|via)\s+(discord|telegram|whatsapp|snapchat|snap)\b"), 0.90),
+            # "hit me up / message me / DM me on discord"
+            (_p(r"\b(hit\s+me\s+up|message\s+me|dm\s+me|hmu)\s+(on|at|in|via)\s+(discord|telegram|whatsapp|snapchat|snap)\b"), 0.90),
+            # platform name + trade/deal/give context
+            (_p(r"\b(discord|telegram|whatsapp|snapchat)\b.{0,20}\b(to\s+trade|to\s+deal|to\s+give|to\s+send|for\s+the\s+deal)\b"), 0.75),
+            # "my discord/telegram is ..." (sharing handle to redirect)
+            (_p(r"\bmy\s+(discord|telegram|snapchat|snap)\s+(is|:|\bname\b)\b"), 0.65),
+        ],
+        "threshold": 0.70,
+    },
+
+    # -----------------------------------------------------------------------
+    # FREE_ITEM_LURE  (compound: BOTH groups must match; suppressed if asker)
+    # Fires only when a lure offer AND an engagement hook are both present.
+    # Suppressed when the text reads as a question/request (the child is the
+    # one looking, not the scammer offering).
+    # -----------------------------------------------------------------------
+    "FREE_ITEM_LURE": {
+        "description": "Free item lure with engagement hook",
+        "mode": "compound",
+        "groups": {
+            "lure": [
+                (_p(r"\bfree\s+(robux|v.?bucks|minecoins|coins|gems|gold|credits|tokens)\b"), 0.80),
+                (_p(r"\bfree\s+(skins?|items?|weapons?|guns?|characters?|cosmetics?|crates?|loot|boxes?)\b"), 0.75),
+                (_p(r"\bfree\s+\w+\s*(generator|gen)\b"), 0.80),
+                (_p(r"\b(robux|v.?bucks|skins?|items?|coins)\s+(giveaway|generator|gen)\b"), 0.80),
+                (_p(r"\bgiving\s+away\s+(free\s+)?(robux|v.?bucks|skins?|items?|coins)\b"), 0.85),
+                (_p(r"\b(get|claim|collect)\s+free\s+(robux|v.?bucks|skins?|items?)\b"), 0.75),
+            ],
+            "hook": [
+                (_p(r"\b(dm|d\.m\.)\s+me\b"), 0.85),
+                (_p(r"\bdirect\s+message\s+me\b"), 0.85),
+                (_p(r"\b(msg|message|contact|hit\s+up)\s+me\b"), 0.70),
+                (_p(r"\b(add|friend|follow)\s+me\b"), 0.70),
+                # off-platform redirect also counts as an engagement hook
+                (_p(r"\b(go|move|come|switch)\b.{0,25}\b(discord|telegram|whatsapp|snapchat|snap)\b"), 0.90),
+                (_p(r"\b(add|find|reach|contact)\s+me\s+(on|at|via)\s+(discord|telegram|whatsapp|snapchat|snap)\b"), 0.90),
+            ],
+        },
+        # Fires only from the OFFEROR side; suppress when speaker is the seeker
+        "suppress": [
+            _p(r"\bwhere\s+can\s+i\s+(get|find|earn|obtain)\b"),
+            _p(r"\bdoes\s+anyone\s+(know|have|give|sell)\b"),
+            _p(r"\bhow\s+do\s+i\s+(get|earn|find|obtain|unlock)\b"),
+            _p(r"\banyone\s+(know|have|sell|give)\b"),
+            _p(r"\bcan\s+i\s+(get|have|earn|find)\s+free\b"),
+            _p(r"\blooking\s+for\s+(free|cheap|good)\b"),
+            _p(r"\bwhere\s+(do\s+i|to|can\s+i)\s+get\b"),
+            _p(r"\bhow\s+to\s+get\s+free\b"),
+            _p(r"\bis\s+there\s+(a\s+)?(way|site|place)\s+to\s+get\b"),
+        ],
+    },
+
 }
+
+
+# ---------------------------------------------------------------------------
+# Classifier dispatch
+# ---------------------------------------------------------------------------
+
+def _classify_weighted(text: str, tactic_name: str, tactic: dict) -> Finding | None:
+    score = 0.0
+    for pattern, weight in tactic["patterns"]:
+        if pattern.search(text):
+            score += weight
+    if score >= tactic["threshold"]:
+        confidence = min(1.0, score / tactic["threshold"])
+        return Finding(
+            tactic=tactic_name,
+            confidence=round(confidence, 3),
+            description=tactic["description"],
+        )
+    return None
+
+
+def _classify_compound(text: str, tactic_name: str, tactic: dict) -> Finding | None:
+    # Suppression check: if the speaker is the seeker, not the offeror, stay silent
+    for pat in tactic.get("suppress", []):
+        if pat.search(text):
+            return None
+
+    # All groups must each have at least one matching pattern
+    group_scores: list[float] = []
+    for _group_name, patterns in tactic["groups"].items():
+        best = max(
+            (weight for pat, weight in patterns if pat.search(text)),
+            default=0.0,
+        )
+        if best == 0.0:
+            return None  # required group unmatched — tactic does not fire
+        group_scores.append(best)
+
+    confidence = min(1.0, sum(group_scores) / len(group_scores))
+    return Finding(
+        tactic=tactic_name,
+        confidence=round(confidence, 3),
+        description=tactic["description"],
+    )
 
 
 def classify(text: str) -> list[Finding]:
@@ -146,20 +263,13 @@ def classify(text: str) -> list[Finding]:
         return []
 
     findings: list[Finding] = []
-
     for tactic_name, tactic in TACTICS.items():
-        score = 0.0
-        for pattern, weight in tactic["patterns"]:
-            if pattern.search(text):
-                score += weight
-
-        if score >= tactic["threshold"]:
-            confidence = min(1.0, score / tactic["threshold"])
-            findings.append(Finding(
-                tactic=tactic_name,
-                confidence=round(confidence, 3),
-                description=tactic["description"],
-            ))
+        if tactic.get("mode") == "compound":
+            finding = _classify_compound(text, tactic_name, tactic)
+        else:
+            finding = _classify_weighted(text, tactic_name, tactic)
+        if finding:
+            findings.append(finding)
 
     findings.sort(key=lambda f: f.confidence, reverse=True)
     return findings
