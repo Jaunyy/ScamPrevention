@@ -1,0 +1,24 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Wrangler local state
+.wrangler/
+.dev.vars
+
+# The detector's runtime data lives in ~/.scam_detector/ (outside this repo),
+# but guard against any local config accidentally dropped here
+config.json
+*.jsonl
+
+# Editor
+.vscode/
+.idea/

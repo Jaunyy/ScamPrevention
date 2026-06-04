@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Scam Detector — Parent Dashboard</title>
+<style>
+  :root {
+    --bg: #0f0f11;
+    --surface: #1a1a1f;
+    --border: #2a2a35;
+    --text: #e8e8f0;
+    --muted: #8888a0;
+    --accent: #ff6b35;
+    --accent-dim: #3d1a0a;
+    --green: #4caf78;
+    --yellow: #f0b429;
+    --red: #e05252;
+    --radius: 10px;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: var(--bg); color: var(--text);
+    min-height: 100vh; padding: 0;
+  }
+
+  /* ---- header ---- */
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 18px 32px;
+    display: flex; align-items: center; gap: 14px;
+  }
+  header .logo { font-size: 26px; }
+  header h1 { font-size: 18px; font-weight: 700; }
+  header .sub { font-size: 13px; color: var(--muted); margin-top: 2px; }
+  .status-dot {
+    width: 10px; height: 10px; border-radius: 50%;
+    background: var(--muted); margin-left: auto;
+    transition: background 0.3s;
+  }
+  .status-dot.live { background: var(--green); box-shadow: 0 0 6px var(--green); }
+
+  /* ---- setup panel ---- */
+  #setup-panel {
+    max-width: 520px; margin: 60px auto; padding: 0 20px;
+  }
+  #setup-panel h2 { font-size: 22px; margin-bottom: 8px; }
+  #setup-panel p { color: var(--muted); font-size: 14px; margin-bottom: 24px; line-height: 1.6; }
+  .input-row { display: flex; gap: 10px; }
+  input[type="text"] {
+    flex: 1; background: var(--surface); border: 1px solid var(--border);
+    color: var(--text); border-radius: var(--radius); padding: 12px 16px;
+    font-size: 15px; letter-spacing: 0.08em; font-family: monospace;
+    outline: none;
+  }
+  input[type="text"]:focus { border-color: var(--accent); }
+  button.primary {
+    background: var(--accent); color: white; border: none;
+    border-radius: var(--radius); padding: 12px 22px; font-size: 14px;
+    font-weight: 600; cursor: pointer; white-space: nowrap;
+    transition: opacity 0.15s;
+  }
+  button.primary:hover { opacity: 0.85; }
+  button.primary:disabled { opacity: 0.4; cursor: default; }
+  .error-msg { color: var(--red); font-size: 13px; margin-top: 10px; }
+
+  /* ---- main dashboard ---- */
+  #dashboard { display: none; padding: 32px; max-width: 900px; margin: 0 auto; }
+
+  .stats-row {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 16px; margin-bottom: 32px;
+  }
+  .stat-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 20px;
+  }
+  .stat-card .value { font-size: 32px; font-weight: 700; }
+  .stat-card .label { font-size: 13px; color: var(--muted); margin-top: 4px; }
+
+  /* ---- timeline ---- */
+  h2.section-title { font-size: 16px; font-weight: 600; margin-bottom: 16px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+
+  #timeline { display: flex; flex-direction: column; gap: 12px; }
+
+  .event-card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 16px 20px;
+    display: flex; align-items: flex-start; gap: 16px;
+    animation: fadeIn 0.25s ease;
+  }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; } }
+
+  .tactic-badge {
+    flex-shrink: 0; padding: 4px 10px; border-radius: 6px;
+    font-size: 11px; font-weight: 700; letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .badge-URGENCY          { background: #3d2800; color: #f0b429; }
+  .badge-SECRECY          { background: #1a0a3d; color: #9b7df5; }
+  .badge-FALSE_AUTHORITY  { background: #0a1f3d; color: #5ba3f5; }
+  .badge-RECIPROCITY      { background: #0a3d1a; color: #4caf78; }
+  .badge-CREDENTIAL_REQUEST { background: #3d0a0a; color: #e05252; }
+  .badge-PAYMENT_REQUEST  { background: #2d0a3d; color: #e052d0; }
+
+  .event-body { flex: 1; }
+  .event-desc { font-size: 14px; font-weight: 500; }
+  .event-meta { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+  .conf-bar-wrap { width: 80px; }
+  .conf-bar-bg {
+    height: 6px; border-radius: 3px; background: var(--border); overflow: hidden;
+  }
+  .conf-bar-fill {
+    height: 100%; border-radius: 3px; background: var(--accent);
+    transition: width 0.3s;
+  }
+  .conf-pct { font-size: 11px; color: var(--muted); margin-top: 4px; text-align: right; }
+
+  .empty-state {
+    text-align: center; padding: 60px 20px; color: var(--muted);
+  }
+  .empty-state .icon { font-size: 48px; margin-bottom: 12px; }
+
+  .refresh-row {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 16px;
+  }
+  .last-updated { font-size: 12px; color: var(--muted); }
+  button.secondary {
+    background: var(--surface); color: var(--text); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 8px 16px; font-size: 13px; cursor: pointer;
+    transition: border-color 0.15s;
+  }
+  button.secondary:hover { border-color: var(--accent); }
+
+  .device-name { font-size: 13px; color: var(--muted); margin-left: auto; padding-left: 20px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">🛡</div>
+  <div>
+    <h1>Scam Coercion Detector</h1>
+    <div class="sub">Parent Dashboard</div>
+  </div>
+  <span class="device-name" id="device-label"></span>
+  <div class="status-dot" id="status-dot"></div>
+</header>
+
+<!-- Step 1: enter token -->
+<div id="setup-panel">
+  <h2>Connect your child's device</h2>
+  <p>
+    Run the detector on your child's Mac, note the <strong>Device token</strong>
+    printed at startup, and enter it below. You only do this once.
+  </p>
+  <div class="input-row">
+    <input type="text" id="token-input" placeholder="e.g. A1B2C3D4E5F6"
+           maxlength="12" autocomplete="off" autocorrect="off" spellcheck="false">
+    <button class="primary" id="connect-btn">Connect</button>
+  </div>
+  <div class="error-msg" id="error-msg"></div>
+</div>
+
+<!-- Step 2: dashboard view -->
+<div id="dashboard">
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="value" id="stat-total">—</div>
+      <div class="label">Total alerts</div>
+    </div>
+    <div class="stat-card">
+      <div class="value" id="stat-today">—</div>
+      <div class="label">Today</div>
+    </div>
+    <div class="stat-card">
+      <div class="value" id="stat-top-tactic">—</div>
+      <div class="label">Most common tactic</div>
+    </div>
+  </div>
+
+  <div class="refresh-row">
+    <h2 class="section-title">Alert timeline</h2>
+    <div style="display:flex;align-items:center;gap:12px">
+      <span class="last-updated" id="last-updated"></span>
+      <button class="secondary" id="refresh-btn">Refresh</button>
+    </div>
+  </div>
+  <div id="timeline"></div>
+</div>
+
+<script>
+const WORKER_URL = (() => {
+  // Read from ?worker= param or localStorage so the page is portable
+  const params = new URLSearchParams(location.search);
+  return params.get("worker") || localStorage.getItem("workerUrl") || "";
+})();
+
+const TACTIC_LABELS = {
+  URGENCY:            "Urgency / time pressure",
+  SECRECY:            "Secrecy / hiding from parents",
+  FALSE_AUTHORITY:    "False authority / impersonation",
+  RECIPROCITY:        "Go-first / reciprocity trap",
+  CREDENTIAL_REQUEST: "Credential / account info request",
+  PAYMENT_REQUEST:    "Payment / gift card request",
+};
+
+let currentToken = localStorage.getItem("deviceToken") || "";
+let autoRefreshTimer = null;
+
+// ---- DOM refs ----
+const setupPanel   = document.getElementById("setup-panel");
+const dashboard    = document.getElementById("dashboard");
+const tokenInput   = document.getElementById("token-input");
+const connectBtn   = document.getElementById("connect-btn");
+const errorMsg     = document.getElementById("error-msg");
+const timeline     = document.getElementById("timeline");
+const statusDot    = document.getElementById("status-dot");
+const deviceLabel  = document.getElementById("device-label");
+const lastUpdated  = document.getElementById("last-updated");
+const refreshBtn   = document.getElementById("refresh-btn");
+
+// ---- init ----
+if (currentToken) {
+  tokenInput.value = currentToken;
+  showDashboard(currentToken);
+}
+
+connectBtn.addEventListener("click", () => {
+  const token = tokenInput.value.trim().toUpperCase();
+  if (!/^[A-Z0-9]{12}$/.test(token)) {
+    errorMsg.textContent = "Token must be exactly 12 alphanumeric characters.";
+    return;
+  }
+  errorMsg.textContent = "";
+  currentToken = token;
+  localStorage.setItem("deviceToken", token);
+  showDashboard(token);
+});
+
+tokenInput.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") connectBtn.click();
+});
+
+refreshBtn.addEventListener("click", () => loadEvents(currentToken));
+
+// ---- routing ----
+function showDashboard(token) {
+  setupPanel.style.display = "none";
+  dashboard.style.display = "block";
+  loadEvents(token);
+  clearInterval(autoRefreshTimer);
+  autoRefreshTimer = setInterval(() => loadEvents(token), 30_000);
+}
+
+// ---- data ----
+async function loadEvents(token) {
+  if (!WORKER_URL) {
+    timeline.innerHTML = `
+      <div class="empty-state">
+        <div class="icon">⚙️</div>
+        <div>Configure the Worker URL.<br>
+        Add <code>?worker=https://your-worker.workers.dev</code> to this page's URL.</div>
+      </div>`;
+    return;
+  }
+
+  refreshBtn.disabled = true;
+  try {
+    const res = await fetch(`${WORKER_URL}/events?limit=100`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+
+    if (res.status === 403) {
+      errorMsg.textContent = "Token not recognized. Register the device first.";
+      setupPanel.style.display = "block";
+      dashboard.style.display = "none";
+      localStorage.removeItem("deviceToken");
+      return;
+    }
+
+    const data = await res.json();
+    statusDot.className = "status-dot live";
+    deviceLabel.textContent = data.device ? `Device: ${data.device}` : "";
+    renderEvents(data.events || []);
+    lastUpdated.textContent = `Updated ${new Date().toLocaleTimeString()}`;
+  } catch (err) {
+    statusDot.className = "status-dot";
+    lastUpdated.textContent = "Could not reach Worker — showing cached view";
+  } finally {
+    refreshBtn.disabled = false;
+  }
+}
+
+function renderEvents(events) {
+  // Stats
+  const total = events.length;
+  const today = events.filter(e => {
+    const d = new Date(e.timestamp);
+    const now = new Date();
+    return d.toDateString() === now.toDateString();
+  }).length;
+
+  const counts = {};
+  events.forEach(e => { counts[e.tactic] = (counts[e.tactic] || 0) + 1; });
+  const topTactic = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+  const topLabel = topTactic
+    ? (TACTIC_LABELS[topTactic[0]] || topTactic[0]).split(" / ")[0]
+    : "—";
+
+  document.getElementById("stat-total").textContent = total || "0";
+  document.getElementById("stat-today").textContent = today || "0";
+  document.getElementById("stat-top-tactic").textContent = topLabel;
+
+  if (events.length === 0) {
+    timeline.innerHTML = `
+      <div class="empty-state">
+        <div class="icon">✅</div>
+        <div>No alerts yet — the detector is running and watching.</div>
+      </div>`;
+    return;
+  }
+
+  timeline.innerHTML = events.map(e => {
+    const confPct = Math.round(e.confidence * 100);
+    const label = TACTIC_LABELS[e.tactic] || e.tactic;
+    const ts = new Date(e.timestamp).toLocaleString();
+    return `
+      <div class="event-card">
+        <span class="tactic-badge badge-${e.tactic}">${e.tactic.replace("_", " ")}</span>
+        <div class="event-body">
+          <div class="event-desc">${label}</div>
+          <div class="event-meta">${ts}</div>
+        </div>
+        <div class="conf-bar-wrap">
+          <div class="conf-bar-bg">
+            <div class="conf-bar-fill" style="width:${confPct}%"></div>
+          </div>
+          <div class="conf-pct">${confPct}%</div>
+        </div>
+      </div>`;
+  }).join("");
+}
+</script>
+</body>
+</html>
