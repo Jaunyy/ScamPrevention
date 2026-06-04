@@ -2,6 +2,10 @@
 
 A desktop child safety tool that watches a child's game screen in real time, OCRs on-screen text, and alerts the child when it detects scam or coercion tactics with a parent dashboard to review flagged events.
 
+## NOTE FOR GRADERS:
+
+I pivoted my project slightly from the first and second milestone. After reviewing the feedback I recieved in those milestones, I realized I should narrowed the focus of my AI detection software, which is why I chose to move to detection of scams.
+
 ---
 
 ## Problem & Motivation
