@@ -4,7 +4,7 @@ A child-safety tool that watches game chat in real time and alerts kids when it 
 
 ## What it does
 
-Kids playing online games (Roblox, Xbox, Epic/Fortnite) are frequently targeted by scammers using a predictable set of psychological tactics. This tool runs locally on the child's Mac, periodically captures the screen, OCRs the text, and classifies it against a **coercion-tactic taxonomy** — not a keyword blocklist — to distinguish real threats from normal game chat.
+Kids playing online games (Roblox, Xbox, Epic/Fortnite) are frequently targeted by scammers using a predictable set of psychological tactics. This tool runs locally on the child's Mac, periodically captures the screen, OCRs the text, and classifies it against a **coercion-tactic taxonomy** to distinguish real threats from normal game chat.
 
 When a tactic fires, a calm non-blocking orange banner appears at the top of the screen telling the child it looks like a scam and to talk to a parent. The flagged event (tactic type + confidence, no raw text) is sent to a Cloudflare Worker and stored in a D1 database so the parent can review a timeline on a hosted dashboard.
 
