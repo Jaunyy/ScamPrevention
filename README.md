@@ -1,6 +1,6 @@
 # Scam Coercion Detector
 
-A desktop child-safety tool that watches a child's game screen in real time, OCRs on-screen text, and alerts the child when it detects scam or coercion tactics — with a parent dashboard to review flagged events.
+A desktop child safety tool that watches a child's game screen in real time, OCRs on-screen text, and alerts the child when it detects scam or coercion tactics with a parent dashboard to review flagged events.
 
 ---
 
@@ -8,7 +8,7 @@ A desktop child-safety tool that watches a child's game screen in real time, OCR
 
 Online games are no longer just games. Roblox, Fortnite, Minecraft, and Xbox Live are social platforms where children spend hours a day talking to strangers. Approximately 45% of Roblox's user base is 12 or younger, and a significant portion of that population has limited experience recognizing manipulation.
 
-The attacks are almost never technical. Scammers do not exploit zero-days or compromise accounts through malware. They exploit psychology:
+The attacks are almost never technical. Scammers do not exploit zero days or compromise accounts through malware. They exploit psychology:
 
 - **Urgency** — "Only 3 minutes left before this offer disappears" forces a decision before the child can think or ask a parent.
 - **Secrecy** — "Don't tell your parents about this" isolates the child from the people most likely to intervene.
@@ -17,11 +17,11 @@ The attacks are almost never technical. Scammers do not exploit zero-days or com
 - **Credential and payment requests** — asking for passwords, 2FA codes, or gift card codes directly. The FBI has documented that offenders in sextortion schemes targeting minors demand money and/or gift cards from their victims [[3]](#references).
 - **Off-platform moves** — "Let's trade on Discord" redirects a child from a moderated game environment to an unmoderated channel, removing the platform's safety net. The FBI has explicitly named asking a victim to "move to a different app" as a documented warning sign for these schemes [[2]](#references).
 
-The scale of documented harm is significant. In a single year, the FBI and its partners received over 7,000 reports of online financial sextortion targeting minors, identifying at least 3,000 victims — predominantly boys — and linking the schemes to more than a dozen suicides [[1]](#references). In 2025, the FBI's Internet Crime Complaint Center issued a separate alert specifically about "The Com," a network of criminal actors who coordinate attacks on minors across gaming platforms including Roblox and Discord, using precisely these social-engineering playbooks [[4]](#references).
+The scale of documented harm is significant. In a single year, the FBI and its partners received over 7,000 reports of online financial sextortion targeting minors, identifying at least 3,000 victims, predominantly boys, and linking the schemes to more than a dozen suicides [[1]](#references). In 2025, the FBI's Internet Crime Complaint Center issued a separate alert specifically about "The Com," a network of criminal actors who coordinate attacks on minors across gaming platforms including Roblox and Discord, using precisely these social-engineering playbooks [[4]](#references).
 
 These are not isolated incidents or edge cases. They are a documented, organized threat directed at the age group that uses gaming platforms most heavily.
 
-The core insight behind this project: **coercion has a detectable psychological structure.** A scammer trying to extract a gift card code from a 10-year-old in Roblox will use recognizable patterns — not a random vocabulary. A classifier that understands the *intent structure* of these tactics (rather than a keyword blocklist, which any scammer trivially circumvents) can detect them reliably.
+The core insight behind this project: **coercion has a detectable psychological structure.** A scammer trying to extract a gift card code from a 10-year-old in Roblox will use recognizable patterns, not a random vocabulary. A classifier that understands the *intent structure* of these tactics (rather than a keyword blocklist, which any scammer trivially circumvents) can detect them reliably.
 
 ---
 
@@ -49,7 +49,7 @@ Classifier  ──── Tier 1: weighted regex (fully offline)
                                  Cloudflare Pages  ──► parent dashboard
 ```
 
-**Local detector** (`detector/`) — Python, runs on the child's Mac. Captures the primary monitor every 2 seconds using `mss`, runs Tesseract OCR on a preprocessed grayscale image, and feeds extracted text to the classifier. The overlay is a Tkinter banner that appears at the top of the screen and auto-dismisses after 30 seconds. The detector is designed to run fully offline; the cloud connection is optional.
+**Local detector** (`detector/`) — Python, runs on the child's Mac. Captures the primary monitor every 2 seconds using `mss`, runs Tesseract OCR on a preprocessed grayscale image, and feeds extracted text to the classifier. The overlay is a Tkinter banner that appears at the top of the screen and auto dismisses after 30 seconds. The detector is designed to run fully offline; the cloud connection is optional.
 
 **Three classification modes** (selected with `--mode`):
 
@@ -84,9 +84,9 @@ The classifier defines eight tactics:
 
 ### Tier 1 — Weighted Regex (offline)
 
-Each tactic has a group of weighted regex patterns. Confidence is computed as the ratio of accumulated match weight to a per-tactic threshold. **No single pattern fires a tactic on its own** — the classifier requires enough overlapping evidence to cross the threshold. This suppresses false positives from isolated common words.
+Each tactic has a group of weighted regex patterns. Confidence is computed as the ratio of accumulated match weight to a per-tactic threshold. **No single pattern fires a tactic on its own** the classifier requires enough overlapping evidence to cross the threshold. This suppresses false positives from isolated common words.
 
-Example — `URGENCY` requires accumulated weight ≥ 0.40. "Quick, only 3 minutes left" hits two patterns (0.35 + 0.55 = 0.90), comfortably above threshold. "right now" alone is weight 0.25 — below threshold, no alert.
+Example: `URGENCY` requires accumulated weight ≥ 0.40. "Quick, only 3 minutes left" hits two patterns (0.35 + 0.55 = 0.90), comfortably above threshold. "right now" alone is weight 0.25. This is below threshold, no alert.
 
 ### Tier 2 — Compound Tactics with Intent Suppression (offline)
 
@@ -94,7 +94,7 @@ Example — `URGENCY` requires accumulated weight ≥ 0.40. "Quick, only 3 minut
 
 `FREE_ITEM_LURE` requires *both* a **lure group** ("free robux", "giving away skins") *and* a **hook group** ("DM me", "add me on discord") to match simultaneously. A child asking "does anyone know where I can get free skins?" matches the lure group but not the hook, and is also caught by suppression patterns that detect interrogative phrasing (`does anyone`, `where can i get`, etc.) — so it never fires.
 
-This intent-awareness — distinguishing the offerer from the asker — is the key design goal. A keyword blocklist on "free robux" would flag victims as well as attackers.
+This intent awareness, which is distinguishing the offerer from the asker, is the key design goal. A keyword blocklist on "free robux" would flag victims as well as attackers.
 
 ### Tier 3 — LLM Escalation (hybrid/llm modes)
 
